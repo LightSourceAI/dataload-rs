@@ -42,12 +42,16 @@ where
     {
         match self {
             LoadRequest::One(_, response_tx) => {
-                response_tx.send(values.into_iter().next().flatten().cloned()).unwrap();
+                let response = values.into_iter().next().flatten().cloned();
+                if let Err(e) = response_tx.send(response) {
+                    tracing::error!(?e, "receiver dropped");
+                }
             }
             LoadRequest::Many(_, response_tx) => {
-                response_tx
-                    .send(values.into_iter().map(|opt| opt.cloned()).collect::<Vec<_>>())
-                    .unwrap();
+                let response = values.into_iter().map(|opt| opt.cloned()).collect::<Vec<_>>();
+                if let Err(e) = response_tx.send(response) {
+                    tracing::error!(?e, "receiver dropped");
+                }
             }
         }
     }

@@ -6,6 +6,8 @@ use futures::future::FutureExt;
 use tokio::sync::mpsc;
 use tracing::{span, Level};
 
+#[cfg(feature = "stats")]
+use crate::worker_stats::WorkerStats;
 use crate::{
     batch_function::BatchFunction,
     cache::Cache,
@@ -41,7 +43,7 @@ use crate::{
 /// NoneType on its response channel.
 pub struct LoaderWorker<K, V, F, CacheT, ContextT>
 where
-    K: 'static + Eq + Debug + Ord + Copy + Send + Sync,
+    K: 'static + Eq + Debug + Ord + Send + Sync,
     V: 'static + Send + Debug + Clone,
     F: 'static + BatchFunction<K, V, Context = ContextT> + Send,
     CacheT: Cache,
@@ -54,11 +56,14 @@ where
     context: ContextT,
     phantom_batch_function: PhantomData<F>,
     debug_name: &'static str,
+
+    #[cfg(feature = "stats")]
+    stats: WorkerStats,
 }
 
 impl<K, V, F, CacheT, ContextT> LoaderWorker<K, V, F, CacheT, ContextT>
 where
-    K: 'static + Eq + Debug + Copy + Ord + Send + Sync,
+    K: 'static + Eq + Debug + Clone + Ord + Send + Sync,
     V: 'static + Send + Debug + Clone,
     F: 'static + BatchFunction<K, V, Context = ContextT> + Send,
     CacheT: Cache<K = K, V = V>,
@@ -77,6 +82,8 @@ where
             context,
             phantom_batch_function: PhantomData,
             debug_name: std::any::type_name::<(K, V)>(),
+            #[cfg(feature = "stats")]
+            stats: WorkerStats::new(std::any::type_name::<(K, V)>()),
         }
     }
 
@@ -84,15 +91,8 @@ where
         let span = span!(Level::TRACE, "LoaderWorker", kv = self.debug_name,);
         let _enter = span.enter();
 
-        loop {
-            // Async await until we receive the first op.
-            match self.request_rx.recv().await {
-                None => {
-                    tracing::info!("Tx channel closed. Terminating LoaderWorker.");
-                    return;
-                }
-                Some(op) => self.mux_op(op),
-            }
+        while let Some(first_op) = self.request_rx.recv().await {
+            self.mux_op(first_op);
             // Flush remainder of the op queue before executing load.
             while let Some(Some(op)) = self.request_rx.recv().now_or_never() {
                 self.mux_op(op);
@@ -107,17 +107,24 @@ where
     fn mux_op(&mut self, op: LoaderOp<K, V>) {
         match op {
             LoaderOp::Load(request) => {
+                #[cfg(feature = "stats")]
+                self.stats.record_load_request(request.keys().len() as u32);
+
                 let cached = self.cache.get_key_vals(request.keys());
                 let keys_to_load = cached
                     .iter()
-                    .filter_map(|(k, v)| if v.is_none() { Some(**k) } else { None })
+                    .filter_map(|(k, v)| if v.is_none() { Some((**k).clone()) } else { None })
                     .collect::<Vec<_>>();
-                tracing::debug!(requested_keys = ?request.keys(), ?keys_to_load);
+
+                #[cfg(feature = "stats")]
+                self.stats.record_cache_hits((cached.len() - keys_to_load.len()) as u32);
+
+                tracing::trace!(requested_keys = ?request.keys(), ?keys_to_load);
                 if keys_to_load.is_empty() {
                     let values = cached.into_iter().map(|(_k, v)| v).collect::<Vec<_>>();
                     request.send_response(values);
                 } else {
-                    self.keys_to_load.extend(&keys_to_load);
+                    self.keys_to_load.extend(keys_to_load);
                     self.pending_request.push(request);
                 }
             }
@@ -131,9 +138,20 @@ where
     #[tracing::instrument(skip(self))]
     async fn execute_load(&mut self) {
         self.keys_to_load.sort();
+
+        #[cfg(feature = "stats")]
+        self.stats.record_load_exec(self.keys_to_load.len() as u32);
+
         self.keys_to_load.dedup();
         let loaded_keyvals = F::load(&self.keys_to_load, &self.context).await;
-        tracing::debug!(?loaded_keyvals);
+        tracing::trace!(load_size = loaded_keyvals.len(), ?loaded_keyvals);
+
+        #[cfg(feature = "stats")]
+        self.stats.record_load_exec_completed(
+            self.keys_to_load.len() as u32,
+            loaded_keyvals.len() as u32,
+        );
+
         self.cache.insert_many(loaded_keyvals);
 
         for request in self.pending_request.drain(..) {

@@ -23,7 +23,7 @@ use crate::{
 /// sequentially and provides results via response oneshot channels back to the Loader.
 pub struct Loader<K, V>
 where
-    K: 'static + Eq + Debug + Copy + Send,
+    K: 'static + Eq + Debug + Send,
     V: 'static + Send + Debug + Clone,
 {
     request_tx: mpsc::UnboundedSender<LoaderOp<K, V>>,
@@ -32,7 +32,7 @@ where
 
 impl<K, V> Drop for Loader<K, V>
 where
-    K: 'static + Eq + Debug + Copy + Send,
+    K: 'static + Eq + Debug + Send,
     V: 'static + Send + Debug + Clone,
 {
     fn drop(&mut self) {
@@ -42,7 +42,7 @@ where
 
 impl<K, V> Loader<K, V>
 where
-    K: 'static + Eq + Debug + Ord + Copy + std::hash::Hash + Send + Sync,
+    K: 'static + Eq + Debug + Ord + Clone + std::hash::Hash + Send + Sync,
     V: 'static + Send + Debug + Clone,
 {
     /// Creates a new Loader for the provided BatchFunction and Context type.
@@ -54,6 +54,7 @@ where
         F: 'static + BatchFunction<K, V, Context = ContextT> + Send,
     {
         let (tx, rx) = mpsc::unbounded_channel();
+
         Self {
             request_tx: tx,
             load_task_handle: tokio::task::spawn(
@@ -66,7 +67,7 @@ where
 
 impl<K, V> Loader<K, V>
 where
-    K: 'static + Eq + Debug + Ord + Copy + Send + Sync,
+    K: 'static + Eq + Debug + Ord + Clone + Send + Sync,
     V: 'static + Send + Debug + Clone,
 {
     /// Loads a value from the underlying resource.
@@ -76,6 +77,7 @@ where
     /// If the value is already in the loader cache, it is returned as soon as it is processed.
     /// Otherwise, the requested key is enqueued for batch loading in the next loader execution
     /// frame.
+    #[inline]
     pub async fn load(&self, key: K) -> Option<V> {
         let (response_tx, response_rx) = oneshot::channel();
         self.request_tx.send(LoaderOp::Load(LoadRequest::One(key, response_tx))).unwrap();
@@ -89,6 +91,7 @@ where
     /// If all the values are already present in the laoder cache, they are returned as soon as the
     /// request is processed by the worker. Otherwise, the keys is enqueue for batch loading in the
     /// next loader execution frame.
+    #[inline]
     pub async fn load_many(&self, keys: Vec<K>) -> Vec<Option<V>> {
         let (response_tx, response_rx) = oneshot::channel();
         self.request_tx.send(LoaderOp::Load(LoadRequest::Many(keys, response_tx))).unwrap();
@@ -96,26 +99,30 @@ where
     }
 
     /// Adds a value to the cache.
-    pub async fn prime(&self, key: K, value: V) {
+    #[inline]
+    pub fn prime(&self, key: K, value: V) {
         self.request_tx.send(LoaderOp::Prime(key, value)).unwrap();
     }
 
     /// Adds many values to the cache at once.
-    pub async fn prime_many(&self, key_vals: Vec<(K, V)>) {
+    #[inline]
+    pub fn prime_many(&self, key_vals: Vec<(K, V)>) {
         self.request_tx.send(LoaderOp::PrimeMany(key_vals)).unwrap();
     }
 
     /// Removes a value from the cache.
     ///
     /// This key will be reloaded when it is next requested.
-    pub async fn clear(&self, key: K) {
+    #[inline]
+    pub fn clear(&self, key: K) {
         self.request_tx.send(LoaderOp::Clear(key)).unwrap();
     }
 
     /// Removes multiple values from the cache at once.
     ///
     /// These keys will be reloaded when requested.
-    pub async fn clear_many(&self, keys: Vec<K>) {
+    #[inline]
+    pub fn clear_many(&self, keys: Vec<K>) {
         self.request_tx.send(LoaderOp::ClearMany(keys)).unwrap();
     }
 }

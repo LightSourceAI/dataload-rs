@@ -2,7 +2,7 @@
 name = "dataload-rs"
 version = "0.1.0"
 authors = ["Idan Mintz <idan@lightsource.ai>"]
-edition = "2018"
+edition = "2021"
 license = "MIT"
 description = "Addresses N+1 problem in GraphQL applications through batching"
 readme = "README.md"
@@ -10,12 +10,15 @@ keywords = ["dataloader", "graphql"]
 categories = ["web-programming", "database", "caching"]
 repository = "https://github.com/LightSourceAI/dataload-rs"
 
+[features]
+stats = []
+
 [dependencies]
 async-trait = "0.1.42"
-futures = "0.3"
-tokio = { version = "1.4", features = ["sync", "rt"] }
+futures = "0.3.15"
+tokio = { version = "1.12", features = ["sync", "rt-multi-thread", "tracing", "parking_lot"] }
 tracing = "0.1"
 tracing-futures = "0.2.5"
 
 [dev-dependencies]
-tokio = { version = "1.4", features = ["sync", "rt", "rt-multi-thread", "macros"] }
+tokio = { version = "1.12", features = ["sync", "rt", "rt-multi-thread", "macros"] }

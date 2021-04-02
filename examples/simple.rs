@@ -12,7 +12,7 @@ impl BatchFunction<i64, String> for MyBatchFn {
     type Context = HashMap<i64, String>;
 
     async fn load(keys: &[i64], context: &Self::Context) -> Vec<(i64, String)> {
-        keys.into_iter().filter_map(|k| context.get(k).cloned().map(|v| (*k, v))).collect()
+        keys.iter().filter_map(|k| context.get(k).cloned().map(|v| (*k, v))).collect()
     }
 }
 
