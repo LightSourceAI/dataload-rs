@@ -31,7 +31,7 @@ where
     pub fn keys(&self) -> &[K] {
         match self {
             LoadRequest::One(ref key, _) => slice::from_ref(key),
-            LoadRequest::Many(ref keys, _) => &keys,
+            LoadRequest::Many(ref keys, _) => keys,
         }
     }
 
@@ -42,18 +42,11 @@ where
     {
         match self {
             LoadRequest::One(_, response_tx) => {
-                response_tx
-                    .send(values.into_iter().next().flatten().cloned())
-                    .unwrap();
+                response_tx.send(values.into_iter().next().flatten().cloned()).unwrap();
             }
             LoadRequest::Many(_, response_tx) => {
                 response_tx
-                    .send(
-                        values
-                            .into_iter()
-                            .map(|opt| opt.cloned())
-                            .collect::<Vec<_>>(),
-                    )
+                    .send(values.into_iter().map(|opt| opt.cloned()).collect::<Vec<_>>())
                     .unwrap();
             }
         }

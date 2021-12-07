@@ -25,9 +25,7 @@ impl BatchFunction<i64, DummyData> for DummyDataLoader {
 
 #[tokio::test]
 async fn basic_load() {
-    let mut context = DummyContext {
-        map: HashMap::new(),
-    };
+    let mut context = DummyContext { map: HashMap::new() };
     context.map.insert(42, "Foo".to_owned());
 
     let loader = Loader::new(DummyDataLoader {}, context);
@@ -36,9 +34,7 @@ async fn basic_load() {
 
 #[tokio::test]
 async fn repeated_load() {
-    let mut context = DummyContext {
-        map: HashMap::new(),
-    };
+    let mut context = DummyContext { map: HashMap::new() };
     context.map.insert(42, "Foo".to_owned());
 
     let loader = Loader::new(DummyDataLoader {}, context);
@@ -48,9 +44,7 @@ async fn repeated_load() {
 
 #[tokio::test]
 async fn basic_load_many() {
-    let mut context = DummyContext {
-        map: HashMap::new(),
-    };
+    let mut context = DummyContext { map: HashMap::new() };
     context.map.insert(42, "one fish".to_owned());
     context.map.insert(12, "two fish".to_owned());
     context.map.insert(5, "red fish".to_owned());
@@ -69,9 +63,7 @@ async fn basic_load_many() {
 
 #[tokio::test]
 async fn load_async() {
-    let mut context = DummyContext {
-        map: HashMap::new(),
-    };
+    let mut context = DummyContext { map: HashMap::new() };
     context.map.insert(42, "one fish".to_owned());
     context.map.insert(12, "two fish".to_owned());
     context.map.insert(5, "red fish".to_owned());
@@ -90,10 +82,7 @@ async fn load_async() {
         tuple.await,
         (
             Some(DummyData("red fish".to_owned())),
-            vec![
-                Some(DummyData("red fish".to_owned())),
-                Some(DummyData("one fish".to_owned())),
-            ],
+            vec![Some(DummyData("red fish".to_owned())), Some(DummyData("one fish".to_owned())),],
             None,
             Some(DummyData("two fish".to_owned()))
         )

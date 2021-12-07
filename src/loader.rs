@@ -78,9 +78,7 @@ where
     /// frame.
     pub async fn load(&self, key: K) -> Option<V> {
         let (response_tx, response_rx) = oneshot::channel();
-        self.request_tx
-            .send(LoaderOp::Load(LoadRequest::One(key, response_tx)))
-            .unwrap();
+        self.request_tx.send(LoaderOp::Load(LoadRequest::One(key, response_tx))).unwrap();
         response_rx.await.unwrap()
     }
 
@@ -93,9 +91,7 @@ where
     /// next loader execution frame.
     pub async fn load_many(&self, keys: Vec<K>) -> Vec<Option<V>> {
         let (response_tx, response_rx) = oneshot::channel();
-        self.request_tx
-            .send(LoaderOp::Load(LoadRequest::Many(keys, response_tx)))
-            .unwrap();
+        self.request_tx.send(LoaderOp::Load(LoadRequest::Many(keys, response_tx))).unwrap();
         response_rx.await.unwrap()
     }
 
